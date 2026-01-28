@@ -83,7 +83,7 @@ def process_profile_for_connection(
     Returns the new state after processing.
     """
     from linkedin.actions.connect import send_connection_request
-    from linkedin.navigation.login import goto_page
+    from linkedin.navigation.utils import goto_page
 
     public_identifier = simple_profile['public_identifier']
     url = simple_profile['url']
@@ -108,7 +108,11 @@ def process_profile_for_connection(
 
     # Navigate to profile page
     logger.info(colored(f"Visiting profile: {public_identifier}", "blue"))
-    goto_page(session, url)
+    goto_page(
+        session,
+        action=lambda: session.page.goto(url),
+        expected_url_pattern=f"/in/{public_identifier}",
+    )
 
     # Send connection request (uses existing stealth-enabled logic)
     new_state = send_connection_request(handle=handle, profile=profile)
