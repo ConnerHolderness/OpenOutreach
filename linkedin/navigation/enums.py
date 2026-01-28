@@ -13,3 +13,4 @@ class ProfileState(str, Enum):
     CONNECTED = "connected"
     COMPLETED = "completed"
     FAILED = "failed"
+    INACTIVE = "inactive"  # Skipped due to no recent activity
