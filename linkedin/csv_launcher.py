@@ -5,7 +5,7 @@ from typing import Optional
 
 import pandas as pd
 
-from linkedin.campaigns.engine import start_campaign
+from linkedin.campaigns.engine import start_campaign, start_connect_only_campaign
 from linkedin.conf import get_first_active_account
 from linkedin.db.profiles import get_updated_at_df
 from linkedin.db.profiles import url_to_public_id
@@ -119,3 +119,56 @@ def launch_connect_follow_up_campaign(
     logger.info(f"Loaded {len(profiles):,} profiles from CSV – ready for battle!")
 
     start_campaign(handle, session, profiles)
+
+
+def launch_connect_only_campaign(
+        handle: Optional[str] = None,
+        input_csv: Optional[str] = None,
+):
+    """
+    Simplified campaign: connection requests only (no messages).
+
+    Reads URLs from:
+    1. input_csv parameter (if provided)
+    2. assets/inputs/urls.csv (default)
+    3. Account's configured input_csv (fallback)
+
+    Features:
+    - Sends 20-30 connection requests per day (randomized)
+    - 2-5 minute delays between connections (human-like)
+    - Tracks progress in database for resumability
+    - Keeps all stealth/anti-detection features
+    """
+    from linkedin.conf import ASSETS_DIR
+
+    if handle is None:
+        handle = get_first_active_account()
+        if handle is None:
+            raise RuntimeError(
+                "No handle provided and no active accounts found in assets/accounts.secrets.yaml. "
+                "Please either pass a handle explicitly or add at least one active account."
+            )
+        logger.info(f"No handle chosen → auto-picking account: @{handle}")
+
+    session = get_session(handle=handle)
+
+    # Determine CSV path
+    if input_csv:
+        csv_path = Path(input_csv)
+    else:
+        # Default to assets/inputs/urls.csv
+        default_csv = ASSETS_DIR / "inputs" / "urls.csv"
+        if default_csv.exists():
+            csv_path = default_csv
+        else:
+            # Fallback to account's configured CSV
+            csv_path = session.account_cfg['input_csv']
+
+    logger.info(f"Launching connect-only campaign → @{handle} | CSV: {csv_path}")
+
+    profiles_df = load_profiles_df(csv_path)
+    profiles = sort_profiles(session, profiles_df)
+
+    logger.info(f"Loaded {len(profiles):,} profiles from CSV")
+
+    start_connect_only_campaign(handle, session, profiles)
