@@ -49,21 +49,28 @@ def parse_relative_time(time_text: str) -> Optional[int]:
     - "1d" -> 1
     - "2w" -> 14
     - "3mo" -> 90
+    - "5mo ago" -> 150
     - "1yr" -> 365
     - "Just now" -> 0
     - "5h" -> 0
 
     Returns None if unable to parse.
     """
+    original_text = time_text
     time_text = time_text.lower().strip()
 
     # Handle "just now" or "today"
     if "just now" in time_text or "today" in time_text:
+        logger.debug(f"Activity parse: '{original_text}' -> 0 days (just now/today)")
         return 0
 
-    # Pattern for relative times like "1d", "2w", "3mo", "1yr", "5h", "30m"
-    match = re.search(r'(\d+)\s*(m|h|d|w|mo|yr|min|hour|day|week|month|year)s?', time_text)
+    # IMPORTANT: Order matters! Longer patterns must come BEFORE shorter ones
+    # e.g., "month" before "mo" before "m", otherwise "5mo" matches "5m" (minutes)
+    pattern = r'(\d+)\s*(month|minute|min|mo|week|year|hour|day|yr|[mhdw])s?'
+    match = re.search(pattern, time_text)
+
     if not match:
+        logger.warning(f"Activity parse FAILED: '{original_text}' - no pattern match")
         return None
 
     value = int(match.group(1))
@@ -71,25 +78,35 @@ def parse_relative_time(time_text: str) -> Optional[int]:
 
     # Map units to days
     unit_to_days = {
-        'm': 0,       # minutes
+        # Minutes/hours -> 0 days (same day)
+        'm': 0,
         'min': 0,
-        'h': 0,       # hours
+        'minute': 0,
+        'h': 0,
         'hour': 0,
-        'd': 1,       # days
+        # Days
+        'd': 1,
         'day': 1,
-        'w': 7,       # weeks
+        # Weeks
+        'w': 7,
         'week': 7,
-        'mo': 30,     # months (approximate)
+        # Months (approximate)
+        'mo': 30,
         'month': 30,
-        'yr': 365,    # years
+        # Years
+        'yr': 365,
         'year': 365,
     }
 
     multiplier = unit_to_days.get(unit, None)
     if multiplier is None:
+        logger.warning(f"Activity parse FAILED: '{original_text}' - unknown unit '{unit}'")
         return None
 
-    return value * multiplier
+    days = value * multiplier
+    logger.info(f"Activity parse: '{original_text}' -> number={value}, unit='{unit}', days={days}")
+
+    return days
 
 
 def scroll_to_activity_section(session) -> bool:
